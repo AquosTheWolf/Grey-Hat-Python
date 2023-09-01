@@ -37,8 +37,8 @@ class debugger():
         if kernel32.CreateProcessA(path_to_exe, None, None, None, None, creation_flags, None, None, byref(startupinfo), byref(process_information)):
             print("[*] We have successfully launched the process!")
             print("[*] The Process ID I have is %d" % \
-                  process_information.dwProcessId
-            self.pid = process_information.dwProcessId)
+                  process_information.dwProcessId)
+            self.pid = process_information.dwProcessId
             self.h_process = self.open_process(self, process_information.dwProcessId)
             self.debugger_active = True
         else:
@@ -75,5 +75,65 @@ class debugger():
             print("Event CodeL %d ThreadID: %d" % \
                   (debug_event.dwDebugEventCode,debug_event.dwThreadId))
             
+            if debug_event.dwDebugEventCode == EXCEPTION_DEBUG_EVENT:
+                self.exception = debug_event.u.Exception.ExceptionRecord.ExceptionCode
+                self.exception_address = debug_event.u.Exception.ExceptionRecord.ExceptionAddress
 
+                if self.exception == EXCEPTION_ADDRESS_VIOLATION:
+                    print("Access Violation Detected.")
+                elif self.exception == EXCEPTION_BREAKOUT:
+                    continue_status == self.exception_handler_breakpoint()
+                elif self.exception == EXCEPTION_GUARD_PAGE:
+                    print("Guard Page Access Detected.")
+                elif self.exception == EXCEPTION_SINGLE_STEP:
+                    self.exception_handler_single_step()
+
+            kernel32.ContinueDebugEvent(debug_event.dwProcessId, debug_event.dwThreadId, continue_status)
+
+    def detatch(self):
+        if kernel32.DebugActiveProcessStop(self.pid):
+            print("[*] Finished debugging.")
+            return True
+        else:
+            print("There was an error.")
+            return False
+        
+    def open_thread(self, thread_id):
+        h_thread = kernel32.OpenThread(THREAD_ALL_ACCESS, None, thread_id)
+
+        if h_thread is not None:
+            return h_thread
+        else:
+            print("[*] Could not obtain a valid thread handle.")
+            return False
+        
+    def enumerate_threads(self):
+        thread_entry = THREADENTRY32()
+        thread_list = []
+        snapshot = kernel32.CreateToolhelp32Snapshot(TH322CS_SNAPTHREAD, self.pid)
+
+        if snapshot is not None:
+            thread_entry.dwSize = sizeof(thread_entry)
+            success = kernel32.Thread32First(snapshot, byref(thread_entry))
+
+            while success:
+                if thread_entry.th32OwnerProcessID == self.pid:
+                    thread_list.append(thread_entry.th32ThreadID)
+                success = kernel32.Thread32Next(snapshot, byref(thread_entry))
+
+            kernel32.ClosedHandle(snapshot)
+            return thread_list
+        else:
+            return False
     
+    def get_thread_context(self, thread_id  = None, h_thread=None):
+        context = CONTEXT()
+        context.ContectFlags = CONTEXT_FULL | CONTEXT_DEBUG_REGISTERS
+
+        if h_thread is None:
+            self.h_thread = self.open_thread(thread_id)
+
+        if kernel32.GetThreadContext(self.h_thread, byref(context)):
+            return context
+        else:
+            return False
