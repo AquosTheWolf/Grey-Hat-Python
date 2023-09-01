@@ -137,3 +137,70 @@ class debugger():
             return context
         else:
             return False
+        
+    def read_process_memory(self,address,length):
+        data = ""
+        read_buf = create_string_buffer(length)
+        count = c_ulong(0)
+
+        kernel32.ReadProcessMemory(self.h_process, address, read_buf, 5, byref(count))
+        data = read_buf.raw
+
+        return data
+    
+    def write_process_memory(self,address,data):
+        count = c_ulong(0)
+        length = len(data)
+
+        c_data = c_char_p(data[count.value:])
+
+        if not kernel32.WriteProcessMemory(self.h_process, address, c_data, length, byref(count)):
+            return False
+        else:
+            return True
+        
+    def bp_set(self,address):
+        print("[*] Setting breakpoint at 0x%08x" % address)
+        if not self.breakpoints.has_key(address):
+
+            old_protect = c_ulong(0)
+            kernel32.VirtualProtectEx(self.h_process, address, 1, PAGE_EXECUTE_READWRITE, byref(old_protect))
+            original_byte = self.read_process_memory(address, 1)
+            if original_byte != False:
+                if self.write_process_memory(address, "\xCC"):
+                    self.breakpoints[address] = (old_protect)
+                    return True
+                else:
+                    return Fase
+                
+    def exception_handler_breakpoint(self):
+        print("[*] Exception address: 0x%08x" % self.exception_address)
+
+        if not self.breakpoints.has_key(self.exception_address):
+            if self.first_breakpoint == True:
+                self.first_breakpoint == False
+                print("[*] Hit the first breakpoint.")
+                return DBG_CONTINUE
+            
+        else:
+            print("[*] Hit user defined breakpoint.")
+
+            self.write_process_memory(self.exception_address, self.breakpoints[self.exception_address])
+            self.context = self.get_thread_context(h_thread=self.h_thread)
+            self.context.Eip -= 1
+
+            kernel32.SetThreadContect(self.h_thread,byref(self.context))
+
+            continue_status = DBG_CONTINUE
+
+        return continue_status
+    
+    def func_resolve(self,dll,function):
+        handle = kernel32.GetModuleHandleA(dll)
+        address = kernel32.GetProcAddress(handle, function)
+
+        kernel32.CloseHandle(handle)
+
+        return address
+           
+    
