@@ -26,4 +26,39 @@ class snapshotter(object):
 
     def monitor_debugger(self):
         while self.running == True:
-            input = input("Enter ")
+            input = input("Enter: 'snap', 'restore', or 'quit'")
+            input = input.lower().strip()
+
+            if input == "quit":
+                print("[*] Exiting the snapshotter.")
+                self.running = False
+                self.dbg.terminate_process()
+
+            elif input == "snap":
+                print("[*] Suspending all threads.")
+                self.dbg.suspend_all_threads()
+
+                print("[*] Obtaining snapshot")
+                self.dbg.process_snapshot()
+
+                print("[*] Resuming operation.")
+                self.dbg.resume_all_threads()
+
+            elif input == "restore":
+                print("[*] Suspending all threads.")
+                self.dbg.suspend_all_threads()
+
+                print("[*] Restoring Snapshot.")
+                self.dbg.process_restore()
+
+                print("[*] Resuming Operation")
+                self.dbg.resume_all_threads()
+    
+    def start_debugger(self):
+
+        self.dbg = pydbg()
+
+        pid = self.dbg.load(self.exe_path)
+        self.pid = self.dbg.pid
+
+        self.dbg.run()
