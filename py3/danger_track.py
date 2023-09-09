@@ -20,3 +20,11 @@ def danger_handler(dbg):
     esp_offset = 0
     while esp_offset <= 20:
         parameter = dbg.smart_deference(dbg.context.Esp + esp_offset)
+        print("[ESP + %d] => %s" % (esp_offset, parameter))
+        esp_offset += 4
+
+    dng.suspend_all_threads()
+    dbg.process_snapshot()
+    dbg.resume_all_threads()
+
+    return DBG_CONTINUE
